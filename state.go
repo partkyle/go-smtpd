@@ -4,6 +4,10 @@ import (
 	"fmt"
 )
 
+func isSuccess(code int) bool {
+	return (code / 100) == 2
+}
+
 type stateFn func(Conv) stateFn
 
 func beginState(c Conv) stateFn {
@@ -39,6 +43,11 @@ func greetingState(c Conv) stateFn {
 	c.WriteHeader(250)
 	fmt.Fprint(c, "Ok")
 
+	return startTransactionState
+}
+
+func startTransactionState(c Conv) stateFn {
+	c.Start()
 	return mailState
 }
 
@@ -54,8 +63,10 @@ func mailState(c Conv) stateFn {
 		fmt.Fprintf(c, "Goodbye!")
 		return nil
 	case MAIL:
-		c.Start()
 		c.Envelope().MailFrom(c, command.Argument)
+		if !isSuccess(c.lastResult()) {
+			return mailState
+		}
 	default:
 		c.WriteHeader(501)
 		fmt.Fprintf(c, "Invalid Command %q", command)
@@ -78,6 +89,9 @@ func rcptState(c Conv) stateFn {
 		return nil
 	case RCPT:
 		c.Envelope().RcptTo(c, command.Argument)
+		if !isSuccess(c.lastResult()) {
+			return rcptState
+		}
 	default:
 		c.WriteHeader(501)
 		fmt.Fprintf(c, "Invalid Command %q", command)
@@ -99,6 +113,7 @@ func rcptDataState(c Conv) stateFn {
 		fmt.Fprintf(c, "Goodbye!")
 		return nil
 	case RCPT:
+		// whether this is success or not, it will remain in this state
 		c.Envelope().RcptTo(c, command.Argument)
 	case DATA:
 		c.WriteHeader(354)
@@ -115,6 +130,11 @@ func rcptDataState(c Conv) stateFn {
 
 func dataState(c Conv) stateFn {
 	c.Envelope().Data(c, c.DotReader())
+
+	return endTransactionState
+}
+
+func endTransactionState(c Conv) stateFn {
 	c.Finish()
 	return mailState
 }

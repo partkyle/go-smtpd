@@ -9,6 +9,7 @@ import (
 type ResponseWriter interface {
 	WriteHeader(int)
 	Write([]byte) (int, error)
+	lastResult() int
 }
 
 type responseWriter struct {
@@ -45,4 +46,8 @@ func (r *responseWriter) Write(p []byte) (n int, err error) {
 	}
 
 	return n, err
+}
+
+func (r *responseWriter) lastResult() int {
+	return r.code
 }
