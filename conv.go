@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"time"
 )
+
+var ErrLineTooLine = errors.New("Command line was too long!")
 
 type Conv interface {
 	Banner() string
@@ -20,7 +23,21 @@ type Conv interface {
 	CmdReader() io.Reader
 	DotReader() io.Reader
 
+	handleError(error) stateFn
+
 	ResponseWriter
+}
+
+type TimedReader struct {
+	idleTimeout time.Duration
+
+	net.Conn
+}
+
+func (t *TimedReader) Read(b []byte) (int, error) {
+	t.Conn.SetReadDeadline(time.Now().Add(t.idleTimeout))
+
+	return t.Conn.Read(b)
 }
 
 type Conversation struct {
@@ -36,16 +53,20 @@ type Conversation struct {
 	ResponseWriter
 }
 
-type TimedReader struct {
-	idleTimeout time.Duration
+func (c *Conversation) handleError(err error) stateFn {
+	if err == io.ErrUnexpectedEOF {
+		c.WriteResponse(503, "Command Line Too Long!")
+		return nil
+	}
 
-	net.Conn
-}
+	if err == ErrLineTooLine {
+		c.WriteResponse(550, ErrLineTooLine.Error())
+		return nil
+	}
 
-func (t *TimedReader) Read(b []byte) (int, error) {
-	t.Conn.SetReadDeadline(time.Now().Add(t.idleTimeout))
-
-	return t.Conn.Read(b)
+	// no transition on command errors
+	c.WriteResponse(501, err.Error())
+	return c.state
 }
 
 func (c *Conversation) Banner() string {

@@ -22,9 +22,7 @@ func bannerState(c Conv) stateFn {
 func greetingState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
-		logger.Printf("error during read command: %q", err)
-		return nil
+		return c.handleError(err)
 	}
 
 	switch command.Command {
@@ -51,8 +49,7 @@ func beginTransactionState(c Conv) stateFn {
 func mailState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
-		return nil
+		return c.handleError(err)
 	}
 
 	switch command.Command {
@@ -75,8 +72,7 @@ func mailState(c Conv) stateFn {
 func rcptState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
-		return nil
+		return c.handleError(err)
 	}
 
 	switch command.Command {
@@ -99,9 +95,7 @@ func rcptState(c Conv) stateFn {
 func rcptDataState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
-
-		return rcptState
+		return c.handleError(err)
 	}
 
 	switch command.Command {
