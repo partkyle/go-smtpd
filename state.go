@@ -10,7 +10,7 @@ func isSuccess(code int) bool {
 
 type stateFn func(Conv) stateFn
 
-func beginState(c Conv) stateFn {
+func bannerState(c Conv) stateFn {
 	c.WriteHeader(220)
 	_, err := fmt.Fprintf(c, c.Banner())
 	if err != nil {
@@ -23,8 +23,10 @@ func beginState(c Conv) stateFn {
 func greetingState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
+		c.WriteHeader(503)
+		fmt.Fprintf(c, "You did something bad: %q", err)
 		logger.Printf("error during read command: %q", err)
-		return greetingState
+		return nil
 	}
 
 	switch command.Command {
@@ -43,18 +45,20 @@ func greetingState(c Conv) stateFn {
 	c.WriteHeader(250)
 	fmt.Fprint(c, "Ok")
 
-	return startTransactionState
+	return beginTransactionState
 }
 
-func startTransactionState(c Conv) stateFn {
-	c.Start()
+func beginTransactionState(c Conv) stateFn {
+	c.BeginTransaction()
 	return mailState
 }
 
 func mailState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		return mailState
+		c.WriteHeader(503)
+		fmt.Fprintf(c, "You did something bad: %q", err)
+		return nil
 	}
 
 	switch command.Command {
@@ -79,7 +83,9 @@ func mailState(c Conv) stateFn {
 func rcptState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		return rcptState
+		c.WriteHeader(503)
+		fmt.Fprintf(c, "You did something bad: %q", err)
+		return nil
 	}
 
 	switch command.Command {
@@ -135,6 +141,6 @@ func dataState(c Conv) stateFn {
 }
 
 func endTransactionState(c Conv) stateFn {
-	c.Finish()
-	return mailState
+	c.EndTransaction()
+	return beginTransactionState
 }

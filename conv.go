@@ -13,9 +13,9 @@ type Conv interface {
 
 	Domain(string)
 
-	Start()
+	BeginTransaction()
 	Envelope() Envelope
-	Finish()
+	EndTransaction()
 
 	CmdReader() io.Reader
 	DotReader() io.Reader
@@ -26,7 +26,8 @@ type Conv interface {
 type Conversation struct {
 	state stateFn
 
-	conn net.Conn
+	conn        net.Conn
+	idleTimeout time.Duration
 
 	domain string
 
@@ -56,7 +57,7 @@ func (c *Conversation) Domain(domain string) {
 	logger.Printf("Got domain: %q", c.domain)
 }
 
-func (c *Conversation) Start() {
+func (c *Conversation) BeginTransaction() {
 	c.envelope = &SimpleEnvelope{}
 }
 
@@ -64,26 +65,35 @@ func (c *Conversation) Envelope() Envelope {
 	return c.envelope
 }
 
-func (c *Conversation) Finish() {
-	c.envelope = &SimpleEnvelope{}
+func (c *Conversation) EndTransaction() {
+	// Clear out the reference to the transaction
+	c.envelope = nil
 }
 
 func (c *Conversation) DotReader() io.Reader {
-	return &dotReader{r: bufio.NewReader(c.conn)}
+	timedReader := &TimedReader{
+		idleTimeout: c.idleTimeout,
+		Conn:        c.conn,
+	}
+	return &dotReader{r: bufio.NewReader(timedReader)}
 }
 
 func (c *Conversation) CmdReader() io.Reader {
-	return &cmdReader{r: bufio.NewReader(c.conn)}
+	timedReader := &TimedReader{
+		idleTimeout: c.idleTimeout,
+		Conn:        c.conn,
+	}
+
+	return &cmdReader{r: bufio.NewReader(timedReader)}
 }
 
 func (c *Conversation) Run() {
 	defer c.conn.Close()
 
-	c.state = beginState
+	c.state = bannerState
 	c.ResponseWriter = &responseWriter{writer: bufio.NewWriter(c.conn)}
 
 	for c.state != nil {
-		logger.Printf("Starting state: %q", c.state)
 		c.state = c.state(c)
 	}
 }
