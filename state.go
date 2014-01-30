@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 )
 
 func isSuccess(code int) bool {
@@ -23,10 +24,15 @@ func bannerState(c Conv) stateFn {
 func greetingState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
-		logger.Printf("error during read command: %q", err)
-		return nil
+		if err == io.ErrUnexpectedEOF {
+			c.WriteHeader(501)
+			fmt.Fprintf(c, "EOF found while searching for \\r\\n terminator")
+			return nil
+		} else {
+			c.WriteHeader(503)
+			fmt.Fprintf(c, "You did something bad: %s", err)
+			return greetingState
+		}
 	}
 
 	switch command.Command {
@@ -56,9 +62,15 @@ func beginTransactionState(c Conv) stateFn {
 func mailState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
-		return nil
+		if err == io.ErrUnexpectedEOF {
+			c.WriteHeader(501)
+			fmt.Fprintf(c, "EOF found while searching for \\r\\n terminator")
+			return nil
+		} else {
+			c.WriteHeader(503)
+			fmt.Fprintf(c, "You did something bad: %s", err)
+			return mailState
+		}
 	}
 
 	switch command.Command {
@@ -83,9 +95,15 @@ func mailState(c Conv) stateFn {
 func rcptState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
-		return nil
+		if err == io.ErrUnexpectedEOF {
+			c.WriteHeader(501)
+			fmt.Fprintf(c, "EOF found while searching for \\r\\n terminator")
+			return nil
+		} else {
+			c.WriteHeader(503)
+			fmt.Fprintf(c, "You did something bad: %s", err)
+			return rcptState
+		}
 	}
 
 	switch command.Command {
@@ -110,7 +128,15 @@ func rcptState(c Conv) stateFn {
 func rcptDataState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		return rcptState
+		if err == io.ErrUnexpectedEOF {
+			c.WriteHeader(501)
+			fmt.Fprintf(c, "EOF found while searching for \\r\\n terminator")
+			return nil
+		} else {
+			c.WriteHeader(503)
+			fmt.Fprintf(c, "You did something bad: %s", err)
+			return rcptDataState
+		}
 	}
 
 	switch command.Command {
