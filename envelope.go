@@ -27,8 +27,7 @@ func (s *SimpleEnvelope) MailFrom(w ResponseWriter, sender string) {
 
 	logger.Printf("Got sender: %q", s.Sender)
 
-	w.WriteHeader(250)
-	fmt.Fprintf(w, "Ok")
+	w.WriteResponse(250, "Ok")
 }
 
 func (s *SimpleEnvelope) RcptTo(w ResponseWriter, recipient string) {
@@ -36,21 +35,18 @@ func (s *SimpleEnvelope) RcptTo(w ResponseWriter, recipient string) {
 
 	logger.Printf("Got recipient. Recipients: %s", s.Recipients)
 
-	w.WriteHeader(250)
-	fmt.Fprintf(w, "Ok")
+	w.WriteResponse(250, "Ok")
 }
 
 func (s *SimpleEnvelope) Data(w ResponseWriter, r io.Reader) {
 	body, err := ioutil.ReadAll(r)
 	if err != nil {
 		logger.Printf("Error reading: %q", err)
-		w.WriteHeader(450)
-		fmt.Fprintf(w, "Error occured during data: %q", err)
+		w.WriteResponse(450, fmt.Sprintf("Error occured during data: %q", err))
 		return
 	}
 
 	logger.Printf("Got data: %q", body)
 
-	w.WriteHeader(250)
-	fmt.Fprintf(w, "Ok")
+	w.WriteResponse(250, "Ok")
 }

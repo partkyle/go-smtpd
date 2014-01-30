@@ -11,8 +11,7 @@ func isSuccess(code int) bool {
 type stateFn func(Conv) stateFn
 
 func bannerState(c Conv) stateFn {
-	c.WriteHeader(220)
-	_, err := fmt.Fprintf(c, c.Banner())
+	err := c.WriteResponse(220, c.Banner())
 	if err != nil {
 		return nil
 	}
@@ -23,27 +22,23 @@ func bannerState(c Conv) stateFn {
 func greetingState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
+		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
 		logger.Printf("error during read command: %q", err)
 		return nil
 	}
 
 	switch command.Command {
 	case QUIT:
-		c.WriteHeader(221)
-		fmt.Fprintf(c, "Goodbye!")
+		c.WriteResponse(221, "Goodbye!")
 		return nil
 	case HELO, EHLO:
 		c.Domain(command.Argument)
 	default:
-		c.WriteHeader(501)
-		fmt.Fprintf(c, "Invalid Command %q", command)
+		c.WriteResponse(501, fmt.Sprintf("Invalid Command %q", command))
 		return greetingState
 	}
 
-	c.WriteHeader(250)
-	fmt.Fprint(c, "Ok")
+	c.WriteResponse(250, "Ok")
 
 	return beginTransactionState
 }
@@ -56,15 +51,13 @@ func beginTransactionState(c Conv) stateFn {
 func mailState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
+		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
 		return nil
 	}
 
 	switch command.Command {
 	case QUIT:
-		c.WriteHeader(221)
-		fmt.Fprintf(c, "Goodbye!")
+		c.WriteResponse(221, "Goodbye!")
 		return nil
 	case MAIL:
 		c.Envelope().MailFrom(c, command.Argument)
@@ -72,8 +65,7 @@ func mailState(c Conv) stateFn {
 			return mailState
 		}
 	default:
-		c.WriteHeader(501)
-		fmt.Fprintf(c, "Invalid Command %q", command)
+		c.WriteResponse(501, fmt.Sprintf("Invalid Command %q", command))
 		return mailState
 	}
 
@@ -83,15 +75,13 @@ func mailState(c Conv) stateFn {
 func rcptState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
-		c.WriteHeader(503)
-		fmt.Fprintf(c, "You did something bad: %q", err)
+		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
 		return nil
 	}
 
 	switch command.Command {
 	case QUIT:
-		c.WriteHeader(221)
-		fmt.Fprintf(c, "Goodbye!")
+		c.WriteResponse(221, "Goodbye!")
 		return nil
 	case RCPT:
 		c.Envelope().RcptTo(c, command.Argument)
@@ -99,8 +89,7 @@ func rcptState(c Conv) stateFn {
 			return rcptState
 		}
 	default:
-		c.WriteHeader(501)
-		fmt.Fprintf(c, "Invalid Command %q", command)
+		c.WriteResponse(501, fmt.Sprintf("Invalid Command %q", command))
 		return rcptState
 	}
 
@@ -110,24 +99,23 @@ func rcptState(c Conv) stateFn {
 func rcptDataState(c Conv) stateFn {
 	command, err := ReadCommand(c.CmdReader())
 	if err != nil {
+		c.WriteResponse(503, fmt.Sprintf("You did something bad: %q", err))
+
 		return rcptState
 	}
 
 	switch command.Command {
 	case QUIT:
-		c.WriteHeader(221)
-		fmt.Fprintf(c, "Goodbye!")
+		c.WriteResponse(221, "Goodbye!")
 		return nil
 	case RCPT:
 		// whether this is success or not, it will remain in this state
 		c.Envelope().RcptTo(c, command.Argument)
 	case DATA:
-		c.WriteHeader(354)
-		fmt.Fprintf(c, "<CRLF>.<CRLF>")
+		c.WriteResponse(354, "<CRLF>.<CRLF>")
 		return dataState
 	default:
-		c.WriteHeader(501)
-		fmt.Fprintf(c, "Invalid Command %q", command)
+		c.WriteResponse(501, fmt.Sprintf("Invalid Command %q", command))
 		return rcptState
 	}
 

@@ -2,13 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 )
 
 type ResponseWriter interface {
-	WriteHeader(int)
-	Write([]byte) (int, error)
+	WriteResponse(int, ...string) error
 	lastResult() int
 }
 
@@ -18,34 +16,22 @@ type responseWriter struct {
 	written bool
 }
 
-func (r *responseWriter) WriteHeader(status int) {
+func (r *responseWriter) WriteResponse(status int, lines ...string) error {
 	r.code = status
-}
-
-func (r *responseWriter) Write(p []byte) (n int, err error) {
-	lines := bytes.Split(p, []byte("\r\n"))
 
 	for i := 0; i < len(lines)-1; i++ {
-		written, err := fmt.Fprintf(r.writer, "%d-%s\r\n", r.code, lines[i])
-		n += written
-
+		_, err := fmt.Fprintf(r.writer, "%d-%s\r\n", status, lines[i])
 		if err != nil {
-			return n, err
+			return err
 		}
 	}
 
-	written, err := fmt.Fprintf(r.writer, "%d %s\r\n", r.code, lines[len(lines)-1])
-	n += written
+	_, err := fmt.Fprintf(r.writer, "%d %s\r\n", status, lines[len(lines)-1])
 	if err != nil {
-		return n, err
+		return err
 	}
 
-	if n > 0 {
-		r.written = true
-		err = r.writer.Flush()
-	}
-
-	return n, err
+	return r.writer.Flush()
 }
 
 func (r *responseWriter) lastResult() int {
